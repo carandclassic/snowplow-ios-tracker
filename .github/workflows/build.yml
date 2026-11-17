@@ -2,24 +2,39 @@ name: Build
 
 on: [push]
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   podspec:
     name: Lint Podspec for ${{ matrix.platform }}
     runs-on: macos-13
+    permissions:
+      contents: read
     strategy:
       matrix:
         platform: [ios, ios, osx, tvos, watchos]
     steps:
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
+        with:
+          persist-credentials: false
       - name: Lint Podspec
-        run: pod lib lint --platforms=${{ matrix.platform }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: pod lib lint --platforms="$PLATFORM"
 
   test_framework:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      checks: write # xcresulttool publishes the test report as a check run
     strategy:
       fail-fast: false
       matrix:
@@ -56,12 +71,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
+        with:
+          persist-credentials: false
 
       # -- Micro --
       - name: Cache Micro
         id: cache-micro
-        uses: actions/cache@v3
+        uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3.5.0
         with:
           path: micro.jar
           key: ${{ runner.os }}-micro
@@ -80,21 +97,24 @@ jobs:
         run: while ! nc -z '0.0.0.0' 9090; do sleep 1; done
       # -- Micro --
 
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: ${{ matrix.xcode-version }}
 
       - name: Build & Test
+        env:
+          DESTINATION: ${{ matrix.destination }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -o pipefail && xcodebuild \
             -scheme SnowplowTracker \
-            -destination "${{ matrix.destination }}" \
-            -only-testing ${{ matrix.target }} \
+            -destination "$DESTINATION" \
+            -only-testing "$TARGET" \
             -resultBundlePath TestResults \
             clean test | xcpretty
 
       - name: Create test results
-        uses: kishikawakatsumi/xcresulttool@v1
+        uses: kishikawakatsumi/xcresulttool@2b37f116695328d5e503ac8dadca0f1545a51da4 # v1.7.1
         with:
           path: TestResults.xcresult
           title: "Test results: ${{ matrix.name }}"
@@ -104,6 +124,8 @@ jobs:
     name: "ObjC demo (iOS ${{ matrix.version.ios }})"
     needs: test_framework
     runs-on: macos-${{ matrix.version.macos }}
+    permissions:
+      contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.version.xcode }}.app/Contents/Developer
 
@@ -130,9 +152,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Build
         env:
@@ -149,6 +172,8 @@ jobs:
     name: "Swift demo (Cocoapods) (iOS ${{ matrix.version.ios }})"
     needs: test_framework
     runs-on: macos-${{ matrix.version.macos }}
+    permissions:
+      contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.version.xcode }}.app/Contents/Developer
 
@@ -167,9 +192,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Build
         env:
@@ -186,6 +212,8 @@ jobs:
     name: "Swift demo (SPM) (iOS ${{ matrix.version.ios }})"
     needs: test_framework
     runs-on: macos-${{ matrix.version.macos }}
+    permissions:
+      contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.version.xcode }}.app/Contents/Developer
 
@@ -204,9 +232,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Get branch name
         id: branch
@@ -239,6 +268,8 @@ jobs:
     name: "Iglu Central (SPM) (iOS ${{ matrix.version.ios }})"
     needs: test_framework
     runs-on: macos-${{ matrix.version.macos }}
+    permissions:
+      contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.version.xcode }}.app/Contents/Developer
 
@@ -250,9 +281,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Build
         env:
